@@ -1,98 +1,109 @@
-
-import { dbEngine, TABLE_PRODUCT_MASTER } from '../../data/sqlDb';
+import { dbEngine, TABLE_PRODUCT_MASTER } from "../../data/sqlDb";
+import { supabase, isSupabaseConfigured } from "./supabase";
+import Groq from "groq-sdk";
 
 export interface ChatMessage {
-    id: string;
-    sender: 'user' | 'ai';
-    text: string;
-    timestamp: number;
+  id: string;
+  sender: "user" | "ai";
+  text: string;
+  timestamp: number;
 }
-
-import Groq from 'groq-sdk';
 
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
 export const aiService = {
-    processQuery: async (query: string, storeId: string): Promise<string> => {
-        // 1. Intent Classification (Simple Rule-Based for now)
-        const lowerQuery = query.toLowerCase();
+  processQuery: async (query: string, storeId: string): Promise<string> => {
+    if (!GROQ_API_KEY) {
+      console.warn("Missing VITE_GROQ_API_KEY");
+      return "I'm currently unable to provide advice as my connection is not configured.";
+    }
 
-        const isAvailabilityQuery = lowerQuery.includes('have') || lowerQuery.includes('stock') || lowerQuery.includes('available');
-        const isLocationQuery = lowerQuery.includes('where') || lowerQuery.includes('find') || lowerQuery.includes('location') || lowerQuery.includes('aisle') || lowerQuery.includes('shelf');
-        const isPriceQuery = lowerQuery.includes('price') || lowerQuery.includes('cost') || lowerQuery.includes('much');
+    let context = "";
 
-        // Check for specific product mentions
-        const products = TABLE_PRODUCT_MASTER;
-        const foundProduct = products.find(p => lowerQuery.includes(p.name.toLowerCase()) || lowerQuery.includes(p.brand.toLowerCase()) || lowerQuery.includes(p.category.toLowerCase()));
+    // 1. Attempt to fetch data from Supabase for context
+    if (isSupabaseConfigured() && storeId) {
+      try {
+        const { data: products } = await supabase.from("product_master").select("*");
+        const { data: inventory } = await supabase
+          .from("store_inventory")
+          .select("*")
+          .eq("store_id", storeId);
 
-        // MODE 1: FACTUAL MODE
-        if ((isAvailabilityQuery || isLocationQuery || isPriceQuery) && foundProduct) {
-            if (!storeId) return "Please select a store first so I can check the inventory.";
-
-            const productDetails = dbEngine.queryProductByBarcode(foundProduct.barcode, storeId);
-
-            if (!productDetails) {
-                return `I'm sorry, I couldn't find details for ${foundProduct.name} in this store.`;
-            }
-
-            const storeTable = dbEngine.getInventoryTable(storeId);
-            const inventoryRecord = storeTable.find(i => i.product_id === foundProduct.id);
-
-            if (!inventoryRecord || !inventoryRecord.in_stock) {
-                return `I'm sorry, ${foundProduct.name} is currently not available in this store.`;
-            }
-
-            const { aisle, rack, shelf } = inventoryRecord.location;
-            const price = inventoryRecord.store_price;
-
-            if (isLocationQuery) {
-                return `You can find ${foundProduct.name} in Aisle ${aisle}, Rack ${rack}, Shelf ${shelf}.`;
-            }
-
-            if (isPriceQuery) {
-                return `${foundProduct.name} corresponds to ₹${price}.`;
-            }
-
-            return `Yes, we have ${foundProduct.name} in stock. It is located in Aisle ${aisle}, Rack ${rack}, Shelf ${shelf}.`;
+        if (products && inventory) {
+          context = products
+            .map((p) => {
+              const inv = inventory.find((i) => i.barcode === p.barcode);
+              if (!inv) return null;
+              return `Product: ${p.name}, Brand: ${p.brand}, Price: ₹${inv.store_price}, Category: ${p.category}, Location: Aisle ${inv.aisle || "N/A"}, Rack ${inv.rack || "N/A"}, Shelf ${inv.shelf || "N/A"}, Stock: ${inv.in_stock ? "Yes" : "No"}.`;
+            })
+            .filter(Boolean)
+            .join("\n");
         }
+      } catch (err) {
+        console.error("Supabase context fetch error:", err);
+      }
+    }
 
-        // MODE 2: ADVISORY MODE (Real LLaMA-3.3 via Groq)
-        if (!GROQ_API_KEY) {
-            console.warn("Missing VITE_GROQ_API_KEY");
-            return "I'm currently unable to provide advice as my connection is not configured. Please check the API key.";
-        }
+    // 2. Fallback to Local Data Context if Supabase failed or returned empty
+    if (!context && storeId) {
+      const products = TABLE_PRODUCT_MASTER;
+      const storeTable = dbEngine.getInventoryTable(storeId);
+      context = products
+        .map((p) => {
+          const inv = storeTable.find((i) => i.product_id === p.id);
+          if (!inv) return null;
+          return `Product: ${p.name}, Brand: ${p.brand}, Price: ₹${inv.store_price}, Category: ${p.category}, Location: Aisle ${inv.location.aisle}, Rack ${inv.location.rack}, Shelf ${inv.location.shelf}, Stock: ${inv.in_stock ? "Yes" : "No"}.`;
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
 
-        try {
-            const groq = new Groq({ apiKey: GROQ_API_KEY, dangerouslyAllowBrowser: true });
+    try {
+      const groq = new Groq({ apiKey: GROQ_API_KEY, dangerouslyAllowBrowser: true });
 
-            const completion = await groq.chat.completions.create({
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are ScanGo AI, a helpful in-store shopping assistant. 
-                        User is in a physical supermarket.
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are ScanGo AI, a helpful in-store shopping assistant. 
+                        
+                        ${storeId ? `CURRENT STORE INVENTORY (${storeId}):\n${context}` : "Note: No store selected yet. Prompt user to select a store for specific inventory info."}
                         
                         RULES:
-                        1. Be concise, polite, and neutral.
-                        2. Do NOT invent specific store inventory, prices, or aisle locations (you don't have access to that in this mode).
-                        3. Focus on general product advice, comparisons, health benefits, and cooking tips.
-                        4. If asked to compare, provide objective pros/cons.
-                        5. Keep answers under 3 sentences if possible.
-                        `
-                    },
-                    {
-                        role: "user",
-                        content: query
-                    }
-                ],
-                model: "llama-3.3-70b-versatile",
-            });
+                        1. Use the provided inventory to answer questions about prices, locations, and availability.
+                        2. If a product is mentioned but not in inventory, say it's not available in this store.
+                        3. Provide helpful advice on cooking, health benefits, and product comparisons.
+                        4. Be concise (max 3-4 sentences).
+                        5. If no store is selected, ask the user to select one first for specific item info.`,
+          },
+          {
+            role: "user",
+            content: query,
+          },
+        ],
+        model: "llama-3.3-70b-versatile",
+      });
 
-            return completion.choices[0]?.message?.content || "I couldn't generate a response.";
-
-        } catch (error) {
-            console.error("Groq API Error:", error);
-            return "I'm having trouble connecting to my brain right now. Please try again.";
-        }
+      return completion.choices[0]?.message?.content || "I couldn't generate a response.";
+    } catch (error) {
+      console.error("Groq API Error:", error);
+      return "I'm having trouble connecting right now. Please try again.";
     }
+  },
+  transcribeAudio: async (audioFile: File): Promise<string> => {
+    if (!GROQ_API_KEY) return "";
+
+    try {
+      const groq = new Groq({ apiKey: GROQ_API_KEY, dangerouslyAllowBrowser: true });
+      const transcription = await groq.audio.transcriptions.create({
+        file: audioFile,
+        model: "whisper-large-v3",
+        response_format: "text",
+      });
+      return transcription as any;
+    } catch (error) {
+      console.error("Transcription Error:", error);
+      return "";
+    }
+  },
 };
