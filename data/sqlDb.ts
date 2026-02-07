@@ -1,5 +1,5 @@
 
-import { Product, OrderStatus } from '../types';
+import { Product, OrderStatus } from '../src/types';
 
 // --- SQL TABLE STRUCTURES ---
 
@@ -174,7 +174,7 @@ export const dbEngine = {
 
     // 3. Find in Store Table
     const inventoryRecord = storeTable.find(i => i.product_id === masterRecord.id);
-    
+
     // Default fallback if store doesn't carry item, use master values
     const price = inventoryRecord ? inventoryRecord.store_price : masterRecord.base_mrp;
     const discount = inventoryRecord ? inventoryRecord.store_discount : 0;
@@ -212,7 +212,7 @@ export const dbEngine = {
   updateReceiptStatus: (receiptNumber: string, status: OrderStatus): boolean => {
     TABLE_RECEIPT_STATUS_REGISTRY = loadReceiptTable(); // Refresh from DB
     const index = TABLE_RECEIPT_STATUS_REGISTRY.findIndex(r => r.receipt_number === receiptNumber);
-    
+
     if (index !== -1) {
       TABLE_RECEIPT_STATUS_REGISTRY[index].payment_status = status;
       saveReceiptTable(TABLE_RECEIPT_STATUS_REGISTRY); // Commit to DB
@@ -220,5 +220,49 @@ export const dbEngine = {
       return true;
     }
     return false;
+  },
+
+  // --- USER REWARD MANAGEMENT ---
+
+  // Simulates: SELECT * FROM users WHERE wallet_address = ?
+  getUserByWallet: (walletAddress: string): { walletAddress: string; rewardBalance: number } | null => {
+    const users = loadUserTable();
+    return users.find(u => u.walletAddress.toLowerCase() === walletAddress.toLowerCase()) || null;
+  },
+
+  // Simulates: UPSERT users SET reward_balance = reward_balance + ? WHERE wallet_address = ?
+  updateUserReward: (walletAddress: string, amount: number) => {
+    let users = loadUserTable();
+    const index = users.findIndex(u => u.walletAddress.toLowerCase() === walletAddress.toLowerCase());
+
+    if (index !== -1) {
+      users[index].rewardBalance = (users[index].rewardBalance || 0) + amount;
+      console.log(`[SQL UPDATE] User ${walletAddress} new balance: ${users[index].rewardBalance}`);
+    } else {
+      // Create new user record if not exists
+      users.push({ walletAddress, rewardBalance: amount });
+      console.log(`[SQL INSERT] New User ${walletAddress} initialized with ${amount}`);
+    }
+    saveUserTable(users);
   }
+};
+
+// --- USER TABLE SIMULATION ---
+const DB_KEY_USERS = 'sql_users_registry_v1';
+interface SQL_User {
+  walletAddress: string;
+  rewardBalance: number;
+}
+
+const loadUserTable = (): SQL_User[] => {
+  try {
+    const data = localStorage.getItem(DB_KEY_USERS);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveUserTable = (table: SQL_User[]) => {
+  localStorage.setItem(DB_KEY_USERS, JSON.stringify(table));
 };

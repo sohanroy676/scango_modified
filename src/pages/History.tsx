@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { OrderQRCode } from '../components/OrderQRCode';
 import { Receipt, ChevronLeft, Smartphone, CreditCard, Banknote, QrCode } from 'lucide-react';
 import { historyApi } from '../services/api';
 import { Order } from '../types';
@@ -120,11 +120,11 @@ export const History: React.FC<HistoryProps> = ({ onBack }) => {
                                                 <h5 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Receipt QR</h5>
                                                 <div className="flex items-center justify-center">
                                                     <div className="bg-white p-2 rounded-lg border border-gray-200">
-                                                        <QRCodeSVG
-                                                            value={order.qrPayload}
+                                                        <OrderQRCode
+                                                            orderHash={order.orderHash}
+                                                            txHash={order.txHash}
+                                                            receiptNumber={order.receiptNumber}
                                                             size={60}
-                                                            level="M"
-                                                            includeMargin={false}
                                                         />
                                                     </div>
                                                 </div>
@@ -137,7 +137,8 @@ export const History: React.FC<HistoryProps> = ({ onBack }) => {
                                                 // Create a detailed receipt view
                                                 const receiptData = {
                                                     ...order,
-                                                    qrCode: order.qrPayload
+                                                    ...order,
+                                                    // qrCode: order.qrPayload // Removed invalid property
                                                 };
                                                 console.log('Full Receipt:', receiptData);
                                                 // You could open a modal or navigate to a full receipt view here

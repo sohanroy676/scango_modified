@@ -1,5 +1,21 @@
 
-import { Employee, CashierResult, GuardResult } from '../types';
+import { Employee } from '../src/types';
+
+export interface CashierResult {
+  success: boolean;
+  status: string;
+  orderHash: string;
+  amount?: number;
+  timestamp: number;
+}
+
+export interface GuardResult {
+  allowed: boolean;
+  status: string;
+  orderHash: string;
+  timestamp: number;
+  itemCount?: number;
+}
 
 // --- MOCK BLOCKCHAIN LEDGER ---
 // In production, this is the blockchain state.
@@ -25,7 +41,7 @@ export const authApi = {
       return {
         id,
         name: `Staff ${id}`,
-        permissions: ['CASHIER', 'GUARD']
+        role: 'CASHIER'
       };
     }
     return null;
@@ -48,23 +64,23 @@ export const cashierApi = {
     const entry = MOCK_BLOCKCHAIN_LEDGER[orderHash];
 
     if (!entry) {
-        return { success: false, status: 'INVALID_QR', orderHash, timestamp: Date.now() };
+      return { success: false, status: 'INVALID_QR', orderHash, timestamp: Date.now() };
     }
 
     // 2. Check State
     if (entry.status === 'PAID' || entry.status === 'USED') {
-      return { 
-        success: false, 
-        status: 'ALREADY_PAID', 
-        orderHash, 
-        amount: entry.amount, 
-        timestamp: Date.now() 
+      return {
+        success: false,
+        status: 'ALREADY_PAID',
+        orderHash,
+        amount: entry.amount,
+        timestamp: Date.now()
       };
     }
 
     // 3. Update State (Write to Blockchain)
     entry.status = 'PAID';
-    
+
     return {
       success: true,
       status: 'PAYMENT_CONFIRMED',
@@ -99,10 +115,10 @@ export const guardApi = {
     // If PAID, mark as USED and allow exit
     if (entry.status === 'PAID') {
       entry.status = 'USED'; // Burn the QR so it can't be used again
-      return { 
-        allowed: true, 
-        status: 'EXIT_ALLOWED', 
-        orderHash, 
+      return {
+        allowed: true,
+        status: 'EXIT_ALLOWED',
+        orderHash,
         timestamp: Date.now(),
         itemCount: entry.items
       };

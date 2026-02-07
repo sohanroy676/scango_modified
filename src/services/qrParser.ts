@@ -28,10 +28,15 @@ export const qrParser = {
         throw new Error('Invalid payload: Missing or invalid txHash');
       }
 
+      if (!data.receiptNumber || typeof data.receiptNumber !== 'string') {
+        throw new Error('Invalid payload: Missing or invalid receiptNumber');
+      }
+
       // 4. Return typed object
       return {
         orderHash: data.orderHash,
-        txHash: data.txHash
+        txHash: data.txHash,
+        receiptNumber: data.receiptNumber
       };
     } catch (err) {
       console.error('QR Parsing Failure:', err);

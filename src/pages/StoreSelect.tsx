@@ -20,8 +20,8 @@ export const StoreSelect: React.FC<StoreSelectProps> = ({ onSelectStore, onError
     const detectLocation = async () => {
         setProcessing(true);
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async (position) => {
-                const nearest = await storeApi.getNearestStore(position.coords.latitude, position.coords.longitude);
+            navigator.geolocation.getCurrentPosition(async () => {
+                const nearest = await storeApi.getNearestStore();
                 onSelectStore(nearest);
                 setProcessing(false);
             }, () => {

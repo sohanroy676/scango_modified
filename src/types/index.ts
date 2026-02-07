@@ -9,6 +9,8 @@ export interface User {
     id: string;
     phoneNumber: string;
     name?: string;
+    walletAddress?: string; // For blockchain rewards
+    rewardBalance?: number; // DB-backed balance
 }
 
 export interface Employee {

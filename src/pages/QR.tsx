@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, ExternalLink, Loader2 } from 'lucide-react';
-import { Order, Store, OrderStatus, PaymentMethod } from '../types';
+import { ShieldCheck, Loader2 } from 'lucide-react';
+import { Order, OrderStatus, PaymentMethod } from '../types';
 import { cashierApi } from '../services/api';
 import { OrderQRCode } from '../components/OrderQRCode';
 
 interface QRProps {
   currentOrder: Order | null;
-  selectedStore: Store | null;
   onFinish: () => void;
 }
 
 export const QR: React.FC<QRProps> = ({
   currentOrder,
-  selectedStore,
   onFinish,
 }) => {
   const [status, setStatus] = useState<OrderStatus>(currentOrder?.status || OrderStatus.PENDING);

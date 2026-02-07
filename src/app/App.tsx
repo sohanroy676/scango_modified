@@ -100,7 +100,7 @@ const App: React.FC = () => {
       setIsProcessing(true);
       setError(null);
       try {
-         const order = await checkoutApi.createOrder(cart, method, selectedStore.name);
+         const order = await checkoutApi.createOrder(cart, method, selectedStore.name, user?.walletAddress);
          setCurrentOrder(order);
          setCurrentScreen('SUCCESS');
       } catch (err) {
@@ -117,7 +117,17 @@ const App: React.FC = () => {
    }, []);
 
    const handleLoginSuccess = (phone: string, name: string) => {
-      setUser({ id: `user-${phone}`, phoneNumber: phone, name: name });
+      // For demo, we assign a fixed wallet or one based on phone
+      // Let's use the one that holds some rewards for testing or a consistent one
+      // In production, this comes from DB
+      const demoWallet = "0x66c668f8953785dc8e17C8A4d884cb0FD7D6A520"; // Key-less public address for demo
+
+      setUser({
+         id: `user-${phone}`,
+         phoneNumber: phone,
+         name: name,
+         walletAddress: demoWallet
+      });
       setCurrentScreen('STORE_SELECT');
    };
 
@@ -177,7 +187,6 @@ const App: React.FC = () => {
                addToCart={addToCart}
                cart={cart}
                error={error}
-               setError={setError}
                totalAmount={totalAmount}
             />
          )}
@@ -204,7 +213,6 @@ const App: React.FC = () => {
          {currentScreen === 'SUCCESS' && ( // Mapped to QR Page
             <QR
                currentOrder={currentOrder}
-               selectedStore={selectedStore}
                onFinish={() => { setCurrentOrder(null); setCart([]); setCurrentScreen('HOME'); }}
             />
          )}

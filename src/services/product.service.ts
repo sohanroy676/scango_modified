@@ -24,7 +24,7 @@ export const productApi = {
             }
 
             // 3. Query Store Price (Inventory)
-            const { data: storeData, error: storeError } = await supabase
+            const { data: storeData } = await supabase
                 .from('store_inventory')
                 .select('store_price, store_discount')
                 .eq('store_id', storeId)

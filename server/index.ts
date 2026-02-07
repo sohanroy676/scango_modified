@@ -8,6 +8,7 @@ import cashierRouter from "./routes/cashier";
 // 🔗 IMPORT ORDERS ROUTER
 import ordersRouter from "./routes/orders";
 import guardRouter from "./routes/guard";
+import userRoutes from "./routes/users";
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.post("/api/verify-otp", async (req: Request, res: Response) => {
 app.use("/api/orders", ordersRouter);
 app.use("/api/cashier", cashierRouter);
 app.use("/api/guard", guardRouter);
+app.use("/api/users", userRoutes);
 
 // ==================
 // SERVER START

@@ -18,14 +18,13 @@ interface ScanProps {
     addToCart: (p: Product, q: number) => void;
     cart: CartItem[];
     error: string | null;
-    setError: (e: string | null) => void;
     totalAmount: number;
 }
 
 export const Scan: React.FC<ScanProps> = ({
     store, onScreenChange, onScan, manualInput, setManualInput, isProcessing,
     lastScanned, setLastScanned, scanQuantity, setScanQuantity, addToCart, cart,
-    error, setError, totalAmount
+    error, totalAmount
 }) => {
     return (
         <div className="h-full flex flex-col bg-black relative">
